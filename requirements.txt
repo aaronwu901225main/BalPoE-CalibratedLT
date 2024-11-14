@@ -7,7 +7,7 @@ pandas>=1.4.2
 tensorboard>=1.14
 Pillow>=9.1.0
 pyyaml
-sklearn 
+scikit-learn 
 h5py 
 lightning
 easydict
