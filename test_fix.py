@@ -34,20 +34,22 @@ def compute_ece(probs, labels, num_bins=15):
     return ece
 
 
-def compute_normalized_entropy(probs):
+def compute_normalized_entropy(probs,entropy):
     """Compute normalized entropy for each sample."""
     # Number of classes
     n_classes = probs.size(1)
     # Compute entropy
-    entropy = -torch.sum(probs * torch.log2(probs + 1e-10), dim=-1)  # Use log base 2
-    # Normalize by maximum entropy log2(n_classes)
-    max_entropy = torch.log2(torch.tensor(n_classes, dtype=torch.float32))
+#     entropy = -torch.sum(probs * torch.log(probs + 1e-10), dim=-1)
+#     print("XXXXXXXXXX")
+#     print(n_classes)
+    # Normalize by maximum entropy log(n_classes)
+    max_entropy = torch.log(torch.tensor(n_classes, dtype=torch.float32))
     normalized_entropy = entropy / max_entropy
     return normalized_entropy
 
 
 
-def plot_uncertainty(scores, title="Uncertainty Distribution", save_path="uncertainty_distribution.png"):
+def plot_Entropy(scores, title="Entropy Distribution", save_path="Entropy_distribution.png"):
     """Plot uncertainty distribution"""
 #     plt.hist(scores, bins=50, alpha=0.75)
     plt.hist(scores, bins=100, range=(0, 4.6), alpha=0.75) 
@@ -57,6 +59,18 @@ def plot_uncertainty(scores, title="Uncertainty Distribution", save_path="uncert
     plt.savefig(save_path)  # 保存圖像
     plt.close()  # 關閉圖像避免資源佔用
 #     plt.show()
+
+
+def plot_normalized_entropy(scores, title="Normalized Entropy Distribution", save_path="normalized_entropy_distribution.png"):
+    """Plot normalized entropy distribution."""
+    plt.hist(scores, bins=100, range=(0, 1), alpha=0.75)
+    plt.title(title)
+    plt.xlabel("Normalized Entropy")
+    plt.ylabel("Frequency")
+    plt.savefig(save_path)  # 保存圖像
+    plt.close()  # 關閉圖像避免資源佔用
+
+
 
 
 def plot_ece(probs, labels, num_bins=15, save_path="reliability_diagram.png"):
@@ -97,15 +111,94 @@ def plot_ece(probs, labels, num_bins=15, save_path="reliability_diagram.png"):
     plt.close()  # 關閉圖像避免資源佔用
 #     plt.show()
 
-def plot_normalized_entropy(scores, title="Normalized Entropy Distribution", save_path="normalized_entropy_distribution.png"):
-    """Plot normalized entropy distribution."""
-    plt.hist(scores, bins=5, range=(0, 1), alpha=0.75)
-    plt.title(title)
-    plt.xlabel("Normalized Entropy")
-    plt.ylabel("Frequency")
-    plt.savefig(save_path)  # 保存圖像
-    plt.close()  # 關閉圖像避免資源佔用
+# def main(config):
+#     logger = config.get_logger('test')
 
+#     data_loader = getattr(module_data, config['data_loader']['type'])(
+#         config['data_loader']['args']['data_dir'],
+#         batch_size=256,
+#         shuffle=False,
+#         training=False,
+#         num_workers=12
+#     )
+#     total_samples = len(data_loader.dataset)
+#     model = config.init_obj('arch', module_arch)
+#     logger.info('Loading checkpoint: {} ...'.format(config.resume))
+#     checkpoint = torch.load(config.resume)
+#     model.load_state_dict(checkpoint['state_dict'])
+
+#     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+#     model = model.to(device)
+#     model.eval()
+
+#     entropy_scores = []
+#     confidence_scores = []
+#     normalized_entropy_scores = []
+#     all_probs = []
+#     all_targets = []
+
+
+#     with torch.no_grad():#禁用梯度計算，因為這段程式碼只用於推論（非訓練階段），節省記憶體並加速計算
+#         for data, target in tqdm(data_loader):
+#             data, target = data.to(device), target.to(device)#從 data_loader 中讀取批次資料與標籤，並將它們轉移到指定的設備（CPU 或 GPU）。
+
+#             logits = model(data)#將資料輸入模型進行推論，獲取原始輸出（logits）。
+#             if isinstance(logits, dict):  # Handle dictionary output
+#                 logits = logits.get('logits', None)
+#                 if logits is None:
+#                     raise ValueError("Model output does not contain the expected key 'logits'.")#如果模型輸出的類型是字典，檢查是否包含 'logits' 鍵，若無則拋出錯誤。
+
+#             if len(logits.shape) == 4:  # Shape: [batch_size, num_classes, height, width]
+#                 logits = logits.mean(dim=[2, 3])  # Average over spatial dimensions
+#             elif len(logits.shape) == 3:  # Shape: [batch_size, num_heads, num_classes]
+#                 logits = logits.mean(dim=1)  # Average over heads
+
+#             probs = torch.softmax(logits, dim=-1)
+
+#             assert len(probs.shape) == 2, f"probs shape is incorrect: {probs.shape}"
+#             assert probs.size(0) == target.size(0), f"probs and target size mismatch: {probs.size(0)} vs {target.size(0)}"
+
+#             # Compute entropy and confidence
+#             entropy = -torch.sum(probs * torch.log(probs + 1e-10), dim=-1)
+#             confidence = probs.max(dim=-1).values
+
+#             n_classes = probs.size(1)
+#             max_entropy = torch.log(torch.tensor(n_classes, dtype=torch.float32))
+#             normalized_entropy = entropy / max_entropy
+            
+#             # Compute normalized entropy
+#             normalized_entropy = compute_normalized_entropy(probs,entropy)
+
+#             # Store results
+#             entropy_scores.extend(entropy.cpu().numpy())
+#             confidence_scores.extend(confidence.cpu().numpy())
+#             all_probs.append(probs.cpu())
+#             all_targets.append(target.cpu())
+
+#             # Optionally store normalized entropy
+#             normalized_entropy_scores.extend(normalized_entropy.cpu().numpy())
+            
+            
+#     all_probs = torch.cat(all_probs, dim=0)  # Shape: [N, C]
+#     all_targets = torch.cat(all_targets, dim=0)  # Shape: [N]
+
+#     assert len(all_probs.shape) == 2, f"all_probs shape is incorrect: {all_probs.shape}"
+#     assert len(all_targets.shape) == 1, f"all_targets shape is incorrect: {all_targets.shape}"
+#     assert all_probs.size(0) == all_targets.size(0), \
+#         f"Mismatch between all_probs and all_targets sizes: {all_probs.size(0)} vs {all_targets.size(0)}"
+
+#     ece_score = compute_ece(all_probs, all_targets)
+#     logger.info(f"Total test samples: {total_samples}")
+#     logger.info(f"Expected Calibration Error (ECE): {ece_score:.4f}")
+#     logger.info(f"Total Entropy: {sum(entropy_scores):.4f}")
+#     logger.info(f"Average Entropy: {np.mean(entropy_scores):.4f}")
+#     logger.info(f"Total normalized Entropy: {sum(normalized_entropy_scores):.4f}")
+#     logger.info(f"Average normalized Entropy: {np.mean(normalized_entropy_scores):.4f}")
+
+#     # Plot metrics and save images
+#     plot_Entropy(entropy_scores, title="Entropy Distribution", save_path="entropy_distribution.png")
+#     plot_ece(all_probs, all_targets, save_path="reliability_diagram.png")
+#     plot_normalized_entropy(normalized_entropy_scores, title="Normalized Entropy Distribution", save_path="normalized_entropy_distribution.png")
 def main(config):
     logger = config.get_logger('test')
 
@@ -116,7 +209,7 @@ def main(config):
         training=False,
         num_workers=12
     )
-
+    total_samples = len(data_loader.dataset)
     model = config.init_obj('arch', module_arch)
     logger.info('Loading checkpoint: {} ...'.format(config.resume))
     checkpoint = torch.load(config.resume)
@@ -128,62 +221,66 @@ def main(config):
 
     entropy_scores = []
     confidence_scores = []
+    normalized_entropy_scores = []
     all_probs = []
     all_targets = []
-
+    correct_predictions = 0  # 用於累計正確預測數
 
     with torch.no_grad():
         for data, target in tqdm(data_loader):
             data, target = data.to(device), target.to(device)
 
             logits = model(data)
-            if isinstance(logits, dict):  # Handle dictionary output
+            if isinstance(logits, dict):
                 logits = logits.get('logits', None)
                 if logits is None:
                     raise ValueError("Model output does not contain the expected key 'logits'.")
 
-            if len(logits.shape) == 4:  # Shape: [batch_size, num_classes, height, width]
-                logits = logits.mean(dim=[2, 3])  # Average over spatial dimensions
-            elif len(logits.shape) == 3:  # Shape: [batch_size, num_heads, num_classes]
-                logits = logits.mean(dim=1)  # Average over heads
+            if len(logits.shape) == 4:
+                logits = logits.mean(dim=[2, 3])
+            elif len(logits.shape) == 3:
+                logits = logits.mean(dim=1)
 
             probs = torch.softmax(logits, dim=-1)
 
             assert len(probs.shape) == 2, f"probs shape is incorrect: {probs.shape}"
             assert probs.size(0) == target.size(0), f"probs and target size mismatch: {probs.size(0)} vs {target.size(0)}"
 
+            # Compute predictions and compare with targets
+            predictions = probs.argmax(dim=-1)  # 每個樣本的預測類別
+            correct_predictions += predictions.eq(target).sum().item()  # 累加正確預測數
+
             # Compute entropy and confidence
             entropy = -torch.sum(probs * torch.log(probs + 1e-10), dim=-1)
             confidence = probs.max(dim=-1).values
 
             # Compute normalized entropy
-            normalized_entropy = compute_normalized_entropy(probs)
+            normalized_entropy = compute_normalized_entropy(probs, entropy)
 
             # Store results
             entropy_scores.extend(entropy.cpu().numpy())
             confidence_scores.extend(confidence.cpu().numpy())
             all_probs.append(probs.cpu())
             all_targets.append(target.cpu())
+            normalized_entropy_scores.extend(normalized_entropy.cpu().numpy())
 
-            # Optionally store normalized entropy
-            normalized_entropy_scores = normalized_entropy.cpu().numpy()
-            
-            
-    all_probs = torch.cat(all_probs, dim=0)  # Shape: [N, C]
-    all_targets = torch.cat(all_targets, dim=0)  # Shape: [N]
+    # Calculate accuracy
+    test_accuracy = correct_predictions / total_samples
 
-    assert len(all_probs.shape) == 2, f"all_probs shape is incorrect: {all_probs.shape}"
-    assert len(all_targets.shape) == 1, f"all_targets shape is incorrect: {all_targets.shape}"
-    assert all_probs.size(0) == all_targets.size(0), \
-        f"Mismatch between all_probs and all_targets sizes: {all_probs.size(0)} vs {all_targets.size(0)}"
-
-    ece_score = compute_ece(all_probs, all_targets)
-    logger.info(f"Expected Calibration Error (ECE): {ece_score:.4f}")
+    # Log results
+    logger.info(f"Total test samples: {total_samples}")
+    logger.info(f"Test Accuracy: {test_accuracy:.4f}")
+    logger.info(f"Expected Calibration Error (ECE): {compute_ece(torch.cat(all_probs), torch.cat(all_targets)):.4f}")
+    logger.info(f"Total Entropy: {sum(entropy_scores):.4f}")
+    logger.info(f"Average Entropy: {np.mean(entropy_scores):.4f}")
+    logger.info(f"Total normalized Entropy: {sum(normalized_entropy_scores):.4f}")
+    logger.info(f"Average normalized Entropy: {np.mean(normalized_entropy_scores):.4f}")
 
     # Plot metrics and save images
-    plot_uncertainty(entropy_scores, title="Entropy Distribution", save_path="entropy_distribution.png")
-    plot_ece(all_probs, all_targets, save_path="reliability_diagram.png")
+    plot_Entropy(entropy_scores, title="Entropy Distribution", save_path="entropy_distribution.png")
+    plot_ece(torch.cat(all_probs), torch.cat(all_targets), save_path="reliability_diagram.png")
     plot_normalized_entropy(normalized_entropy_scores, title="Normalized Entropy Distribution", save_path="normalized_entropy_distribution.png")
+
 
 
 
