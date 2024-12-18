@@ -177,6 +177,13 @@ def main(config):
     all_targets = []
     correct_predictions = 0  # 用於累計正確預測數
 
+
+    #threshold變數宣告
+    threshold = 0  # 設定 confidence 閾值
+    total_filtered_samples = 0
+    total_dropped_samples = 0
+    correct_predictions_filtered = 0
+
     with torch.no_grad():
         for data, target in tqdm(data_loader):
             data, target = data.to(device), target.to(device)
@@ -206,16 +213,48 @@ def main(config):
 
             # Compute normalized entropy
             normalized_entropy = compute_normalized_entropy(probs, entropy)
+            confidences = 1 - normalized_entropy  # 置信度越高，entropy 越低
+
+
+
+            #加上threshold的設定
+            threshold = 0.9  # 設定 confidence 閾值
+            valid_mask = confidences > threshold  # 布林遮罩，True 表示保留樣本
+
+            # 過濾樣本
+            filtered_probs = probs[valid_mask]
+            filtered_targets = target[valid_mask]
+            filtered_predictions = filtered_probs.argmax(dim=-1)
+                        # 計算保留樣本的正確預測數
+            correct_filtered = filtered_predictions.eq(filtered_targets).sum().item()
+
+            # 統計結果
+            num_filtered = valid_mask.sum().item()  # 保留樣本數量
+            num_dropped = target.size(0) - num_filtered  # 放棄作答的樣本數量
+
+            # 累積統計
+            correct_predictions_filtered += correct_filtered  # 累加正確預測數
+            total_filtered_samples += num_filtered  # 累加有效樣本數
+            total_dropped_samples += num_dropped  # 累加放棄樣本數
+            
+
+
 
             # Store results
             entropy_scores.extend(entropy.cpu().numpy())
-            confidence_scores.extend(confidence.cpu().numpy())
+#             confidence_scores.extend(confidence.cpu().numpy())
             all_probs.append(probs.cpu())
             all_targets.append(target.cpu())
             normalized_entropy_scores.extend(normalized_entropy.cpu().numpy())
 
-    # Calculate accuracy
+    # Calculate accuracy原本的accuracy計算
     test_accuracy = correct_predictions / total_samples
+    
+    
+    # 放棄作答的比例
+    drop_rate = total_dropped_samples / total_samples
+    # 有效樣本的準確率
+    filtered_accuracy = correct_predictions_filtered / total_filtered_samples if total_filtered_samples > 0 else 0.0
 
     # Log results
     logger.info(f"Total test samples: {total_samples}")
@@ -225,6 +264,12 @@ def main(config):
     logger.info(f"Average Entropy: {np.mean(entropy_scores):.4f}")
     logger.info(f"Total normalized Entropy: {sum(normalized_entropy_scores):.4f}")
     logger.info(f"Average normalized Entropy: {np.mean(normalized_entropy_scores):.4f}")
+    
+    logger.info(f"threshold: {threshold}")    
+    logger.info(f"Total filtered samples: {total_filtered_samples}")
+    logger.info(f"Total dropped samples: {total_dropped_samples}")
+    logger.info(f"Drop Rate: {drop_rate:.4f}")
+    logger.info(f"Filtered Accuracy: {filtered_accuracy:.4f}")
 
     # Plot metrics and save images
     plot_Entropy(entropy_scores, title="Entropy Distribution", save_path="entropy_distribution.png")
