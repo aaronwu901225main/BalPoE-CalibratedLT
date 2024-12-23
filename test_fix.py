@@ -330,6 +330,86 @@ def main(config):
     plot_confidence_distribution(confidence_scores, title="Confidence Distribution", save_path="confidence_distribution.png")
 
 
+    # 計算 MCE
+    def compute_mce(probs, labels, num_bins=15):
+        """
+        計算模型的 Mean Calibration Error (MCE)。
+        probs: Tensor, shape [N, C]，機率分布
+        labels: Tensor, shape [N]，真實標籤
+        num_bins: MCE 的分箱數
+        """
+        bins = torch.linspace(0, 1, num_bins + 1)
+        bin_lowers = bins[:-1]
+        bin_uppers = bins[1:]
+
+        confidences, predictions = probs.max(dim=-1)  # 預測的置信度與類別
+        labels = labels.view(-1)  # 確保 labels 是 1D
+
+        accuracies = predictions.eq(labels)  # 準確性布林值
+
+        max_calibration_error = 0
+        for bin_lower, bin_upper in zip(bin_lowers, bin_uppers):
+            in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
+            bin_size = in_bin.float().sum()
+            if bin_size > 0:
+                acc_in_bin = accuracies[in_bin].float().mean()  # 該分箱內的準確率
+                conf_in_bin = confidences[in_bin].mean()        # 該分箱內的平均置信度
+                max_calibration_error = max(max_calibration_error, torch.abs(conf_in_bin - acc_in_bin).item())
+        return max_calibration_error
+    
+    # 畫 MCE 可靠性圖
+    def plot_mce(probs, labels, num_bins=15, save_path="mce_reliability_diagram.png"):
+        """
+        繪製 MCE 可靠性圖並標記最大校準誤差。
+        probs: Tensor, 機率分布
+        labels: Tensor, 真實標籤
+        num_bins: 分箱數
+        """
+        bins = torch.linspace(0, 1, num_bins + 1)
+        bin_centers = (bins[:-1] + bins[1:]) / 2
+
+        confidences, predictions = probs.max(dim=-1)
+        accuracies = predictions.eq(labels)
+
+        bin_accs = []
+        bin_confs = []
+        max_error_bin = None
+        max_calibration_error = 0
+
+        for bin_lower, bin_upper in zip(bins[:-1], bins[1:]):
+            in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
+            bin_size = in_bin.float().sum().item()
+            if bin_size > 0:
+                acc_in_bin = accuracies[in_bin].float().mean().item()
+                conf_in_bin = confidences[in_bin].mean().item()
+                bin_accs.append(acc_in_bin)
+                bin_confs.append(conf_in_bin)
+
+                # 計算最大誤差
+                calibration_error = abs(conf_in_bin - acc_in_bin)
+                if calibration_error > max_calibration_error:
+                    max_calibration_error = calibration_error
+                    max_error_bin = (conf_in_bin, acc_in_bin)
+            else:
+                bin_accs.append(0)
+                bin_confs.append(0)
+
+        plt.figure(figsize=(8, 6))
+        plt.plot(bin_confs, bin_accs, marker='o', label="Reliability", color='blue')
+        plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfect Calibration")
+        plt.scatter(max_error_bin[0], max_error_bin[1], color='red', label="Max Calibration Error", zorder=5)
+        plt.annotate(f"Max Error: {max_calibration_error:.2f}",
+                    xy=max_error_bin, xytext=(max_error_bin[0] + 0.1, max_error_bin[1] - 0.1),
+                    arrowprops=dict(facecolor='black', shrink=0.05),
+                    fontsize=10, color='red')
+        plt.xlabel("Confidence")
+        plt.ylabel("Accuracy")
+        plt.title("MCE Reliability Diagram")
+        plt.legend()
+        plt.savefig(save_path)
+        plt.close()
+
+
 
 
 if __name__ == '__main__':
