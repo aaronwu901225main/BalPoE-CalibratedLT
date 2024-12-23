@@ -318,6 +318,13 @@ def main(config):
     logger.info(f"Total dropped samples: {total_dropped_samples}")
     logger.info(f"Drop Rate: {drop_rate:.4f}")
     logger.info(f"Filtered Accuracy: {filtered_accuracy:.4f}")
+
+    # **新增：計算 MCE**
+    mce = compute_mce(torch.cat(all_probs), torch.cat(all_targets))
+    logger.info(f"Mean Calibration Error (MCE): {mce:.4f}")
+
+    # **新增：繪製 MCE 圖表**
+    plot_mce(torch.cat(all_probs), torch.cat(all_targets), save_path="mce_reliability_diagram.png")
     
     #Overkill Rate/Leaky Rate待測試先禁用
 #     logger.info(f"Leaky Rate: {leaky_rate:.4f}")
