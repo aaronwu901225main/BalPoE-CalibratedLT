@@ -349,6 +349,10 @@ else:
     all_probs = []
     all_targets = []
     with torch.no_grad():
+        
+        print(f"Type of data[test_split]: {type(data[test_split])}")
+        print(f"First item of data[test_split]: {next(iter(data[test_split]))}")
+
         for data, target in tqdm(data[test_split]):
             data, target = data.cuda(), target.cuda()
             logits = training_model.model(data)
