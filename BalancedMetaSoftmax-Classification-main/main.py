@@ -25,6 +25,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
+# 定義數據根目錄
+
+data_root = {
+    'ImageNet': './dataset/ImageNet',
+    'Places': './dataset/Places-LT',
+    'iNaturalist18': '/checkpoint/bykang/iNaturalist18',
+    'CIFAR10': './dataset/CIFAR10',
+    'CIFAR100': './dataset/CIFAR100',
+}
+
 # 定義新函式
 
 def compute_ece(probs, labels, num_bins=15):
