@@ -355,7 +355,7 @@ else:
             else:
                 raise ValueError(f"Unexpected batch format: {batch}")
             inputs, targets = inputs.cuda(), targets.cuda()
-            logits = training_model.model(inputs)
+            logits = training_model(inputs)
             probs = torch.softmax(logits, dim=-1)
             all_probs.append(probs.cpu())
             all_targets.append(targets.cpu())
