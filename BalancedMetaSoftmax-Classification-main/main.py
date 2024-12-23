@@ -354,6 +354,7 @@ else:
         print(f"First item of data[test_split]: {next(iter(data[test_split]))}")
 
         for data, target in tqdm(data[test_split]):
+            print(f"Extra info: {extra_info}")  # 檢查用途
             data, target = data.cuda(), target.cuda()
             logits = training_model.model(data)
             probs = torch.softmax(logits, dim=-1)
