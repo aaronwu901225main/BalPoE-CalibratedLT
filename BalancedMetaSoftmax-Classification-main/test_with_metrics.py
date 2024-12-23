@@ -1,6 +1,11 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+from data import dataloader
+from run_networks import model
+from utils import source_import, get_value
+import yaml
+import argparse
 
 
 def compute_entropy(probs):
@@ -36,7 +41,11 @@ def compute_ece(probs, labels, num_bins=15):
     bin_lowers = bins[:-1]
     bin_uppers = bins[1:]
 
-    confidences, predictions = probs.max(dim=-1)
+    entropy = compute_entropy(probs)
+    normalized_entropy = compute_normalized_entropy(probs, entropy)
+    confidences = 1 - normalized_entropy
+
+    _, predictions = probs.max(dim=-1)
     labels = labels.view(-1)
 
     accuracies = predictions.eq(labels)
@@ -77,7 +86,7 @@ def compute_mce(probs, labels, num_bins=15):
     return max_calibration_error
 
 
-def plot_Entropy(scores, title="Entropy Distribution", save_path="entropy_distribution.png"):
+def plot_Entropy(scores, title="Entropy Distribution", save_path="Entropy_distribution.png"):
     plt.hist(scores, bins=100, range=(0, 4.6), alpha=0.75)
     plt.title(title)
     plt.xlabel("Uncertainty Score")
@@ -186,35 +195,23 @@ def plot_mce(probs, labels, num_bins=15, save_path="mce_reliability_diagram.png"
     plt.close()
 
 
-def load_probs_and_labels(model_path):
-    """
-    從 .pth 文件中加載機率分布和真實標籤。
-    model_path: .pth 文件的路徑
-    """
-    checkpoint = torch.load(model_path, map_location='cpu')
-    probs = torch.tensor(checkpoint['probs'])  # 假設 .pth 包含 'probs' 鍵
-    labels = torch.tensor(checkpoint['labels'])  # 假設 .pth 包含 'labels' 鍵
-    return probs, labels
+def test_model_with_metrics(config, data, model_dir, num_bins=15):
+    training_model = model(config, data, test=True)
+    training_model.load_model(model_dir)
 
+    probs, labels = training_model.evaluate_probs()
+    labels = torch.tensor(labels)
+    probs = torch.tensor(probs)
 
-def evaluate_metrics_and_plots(probs, labels, num_bins=15):
-    """
-    計算 ECE 和 MCE，並繪製相關圖表。
-    probs: 預測的機率分布 (Tensor)
-    labels: 真實標籤 (Tensor)
-    num_bins: 用於 ECE 和 MCE 計算的分箱數
-    """
-    # 計算 ECE 和 MCE
     ece = compute_ece(probs, labels, num_bins)
-    mce = compute_mce(probs, labels, num_bins)
     print(f"Expected Calibration Error (ECE): {ece:.4f}")
+
+    mce = compute_mce(probs, labels, num_bins)
     print(f"Mean Calibration Error (MCE): {mce:.4f}")
 
-    # 計算熵和歸一化熵
     entropy = compute_entropy(probs)
     normalized_entropy = compute_normalized_entropy(probs, entropy)
 
-    # 繪製圖表
     plot_Entropy(entropy, save_path="entropy_distribution.png")
     plot_normalized_entropy(normalized_entropy, save_path="normalized_entropy_distribution.png")
     plot_confidence_distribution(1 - normalized_entropy, save_path="confidence_distribution.png")
@@ -223,15 +220,23 @@ def evaluate_metrics_and_plots(probs, labels, num_bins=15):
 
 
 if __name__ == "__main__":
-    import argparse
-
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_path', required=True, type=str, help="模型的 .pth 文件路徑，必須包含 'probs' 和 'labels'")
+    parser.add_argument('--cfg', required=True, type=str, help="配置文件的路徑")
+    parser.add_argument('--model_dir', required=True, type=str, help="模型保存目錄")
     parser.add_argument('--num_bins', default=15, type=int, help="分箱數，用於計算 ECE 和 MCE")
     args = parser.parse_args()
 
-    # 加載機率分布和真實標籤
-    probs, labels = load_probs_and_labels(args.model_path)
+    with open(args.cfg, 'r') as f:
+        config = yaml.load(f, Loader=yaml.SafeLoader)
 
-    # 計算指標並繪製圖表
-    evaluate_metrics_and_plots(probs, labels, args.num_bins)
+    training_opt = config['training_opt']
+    dataset = training_opt['dataset']
+    data_root = {'CIFAR10': './dataset/CIFAR10', 'CIFAR100': './dataset/CIFAR100'}
+    data = {split: dataloader.load_data(data_root=data_root[dataset.rstrip('_LT')],
+                                        dataset=dataset, phase=split,
+                                        batch_size=training_opt['batch_size'],
+                                        num_workers=training_opt['num_workers'],
+                                        shuffle=False)
+            for split in ['train', 'val', 'test']}
+
+    test_model_with_metrics(config, data, args.model_dir, args.num_bins)
