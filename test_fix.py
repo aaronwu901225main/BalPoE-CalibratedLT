@@ -185,6 +185,10 @@ def main(config):
     all_probs = []
     all_targets = []
     correct_predictions = 0  # 用於累計正確預測數
+    # 初始化 Leaky Rate 和 Overkill Rate 的統計變數
+    leaky_correct = 0  # 正確但被丟棄的數量
+    overkill_incorrect = 0  # 錯誤但被保留的數量
+
 
 
     #threshold變數宣告
@@ -229,6 +233,31 @@ def main(config):
             #加上threshold的設定
             threshold = 0.8 # 設定 confidence 閾值
             valid_mask = confidences > threshold  # 布林遮罩，True 表示保留樣本
+            
+            
+            
+            
+            invalid_mask = ~valid_mask  # 丟棄樣本的布林遮罩
+
+            # 過濾有效和無效樣本
+            filtered_targets = target[valid_mask]
+            filtered_predictions = predictions[valid_mask]
+
+            dropped_targets = target[invalid_mask]
+            dropped_predictions = predictions[invalid_mask]
+
+            # Leaky: 計算低於 threshold 的正確預測數
+            leaky_correct += dropped_predictions.eq(dropped_targets).sum().item()
+    
+            # Overkill: 計算高於 threshold 的錯誤預測數
+            overkill_incorrect += filtered_predictions.ne(filtered_targets).sum().item()
+            
+            
+            
+            
+            
+            
+            
 
             # 過濾樣本
             filtered_probs = probs[valid_mask]
@@ -256,6 +285,8 @@ def main(config):
             all_targets.append(target.cpu())
             normalized_entropy_scores.extend(normalized_entropy.cpu().numpy())
             confidence_scores.extend(confidences.cpu().numpy())
+            
+            
     # Calculate accuracy原本的accuracy計算
     test_accuracy = correct_predictions / total_samples
     
@@ -264,6 +295,14 @@ def main(config):
     drop_rate = total_dropped_samples / total_samples
     # 有效樣本的準確率
     filtered_accuracy = correct_predictions_filtered / total_filtered_samples if total_filtered_samples > 0 else 0.0
+    
+    
+    
+    
+        # 計算 Leaky Rate 和 Overkill Rate
+    leaky_rate = leaky_correct / total_samples
+    overkill_rate = overkill_incorrect / total_samples
+    
 
     # Log results
     logger.info(f"Total test samples: {total_samples}")
@@ -279,6 +318,10 @@ def main(config):
     logger.info(f"Total dropped samples: {total_dropped_samples}")
     logger.info(f"Drop Rate: {drop_rate:.4f}")
     logger.info(f"Filtered Accuracy: {filtered_accuracy:.4f}")
+    
+    #Overkill Rate/Leaky Rate待測試先禁用
+#     logger.info(f"Leaky Rate: {leaky_rate:.4f}")
+#     logger.info(f"Overkill Rate: {overkill_rate:.4f}")
 
     # Plot metrics and save images
     plot_Entropy(entropy_scores, title="Entropy Distribution", save_path="entropy_distribution.png")
