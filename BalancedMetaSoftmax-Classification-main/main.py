@@ -73,8 +73,8 @@ def update(config, args):
 
 # ============================================================================
 # LOAD CONFIGURATIONS
-with open(args.cfg) as f:
-    config = yaml.load(f)
+with open(args.cfg, 'r') as f:  # 修改: 添加 'r' 模式
+    config = yaml.load(f, Loader=yaml.SafeLoader)  # 修改: 添加 Loader=yaml.SafeLoader
 config = update(config, args)
 
 test_mode = args.test
