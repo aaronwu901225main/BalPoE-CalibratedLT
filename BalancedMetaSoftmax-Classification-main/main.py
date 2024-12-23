@@ -349,17 +349,13 @@ else:
     all_probs = []
     all_targets = []
     with torch.no_grad():
-        
-        print(f"Type of data[test_split]: {type(data[test_split])}")
-        print(f"First item of data[test_split]: {next(iter(data[test_split]))}")
-
-        for data, target in tqdm(data[test_split]):
-            print(f"Extra info: {extra_info}")  # 檢查用途
+        for data, target, _ in tqdm(data[test_split]):  # 忽略索引部分
             data, target = data.cuda(), target.cuda()
             logits = training_model.model(data)
             probs = torch.softmax(logits, dim=-1)
             all_probs.append(probs.cpu())
             all_targets.append(target.cpu())
+
 
     all_probs = torch.cat(all_probs)
     all_targets = torch.cat(all_targets)
