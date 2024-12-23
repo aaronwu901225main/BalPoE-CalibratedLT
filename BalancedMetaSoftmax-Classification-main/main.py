@@ -1,4 +1,4 @@
-"""Copyright (c) Facebook, Inc. and its affiliates.
+"""Copyright (c) Facebook, Inc. and its affiliates. 
 All rights reserved.
 
 This source code is licensed under the license found in the
@@ -20,15 +20,148 @@ from run_networks import model
 import warnings
 import yaml
 from utils import source_import, get_value
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+from tqdm import tqdm
 
+# 定義新函式
 
-data_root = {'ImageNet': './dataset/ImageNet',
-             'Places': './dataset/Places-LT',
-             'iNaturalist18': '/checkpoint/bykang/iNaturalist18',
-             'CIFAR10': './dataset/CIFAR10',
-             'CIFAR100': './dataset/CIFAR100',
-             }
+def compute_ece(probs, labels, num_bins=15):
+    bins = torch.linspace(0, 1, num_bins + 1)
+    bin_lowers = bins[:-1]
+    bin_uppers = bins[1:]
 
+    entropy = compute_entropy(probs)
+    normalized_entropy = compute_normalized_entropy(probs, entropy)
+    confidences = 1 - normalized_entropy
+
+    _, predictions = probs.max(dim=-1)
+    labels = labels.view(-1)
+    accuracies = predictions.eq(labels)
+
+    ece = 0
+    for bin_lower, bin_upper in zip(bin_lowers, bin_uppers):
+        in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
+        bin_size = in_bin.float().sum()
+        if bin_size > 0:
+            acc_in_bin = accuracies[in_bin].float().mean()
+            conf_in_bin = confidences[in_bin].mean()
+            ece += torch.abs(conf_in_bin - acc_in_bin) * bin_size / probs.size(0)
+    return ece
+
+def compute_entropy(probs):
+    epsilon = 1e-8
+    entropy = -torch.sum(probs * torch.log(probs + epsilon), dim=-1)
+    return entropy
+
+def compute_normalized_entropy(probs, entropy):
+    n_classes = probs.size(1)
+    max_entropy = torch.log(torch.tensor(n_classes, dtype=torch.float32))
+    normalized_entropy = entropy / max_entropy
+    return normalized_entropy
+
+def compute_mce(probs, labels, num_bins=15):
+    bins = torch.linspace(0, 1, num_bins + 1)
+    bin_lowers = bins[:-1]
+    bin_uppers = bins[1:]
+
+    confidences, predictions = probs.max(dim=-1)
+    labels = labels.view(-1)
+    accuracies = predictions.eq(labels)
+
+    max_calibration_error = 0
+    for bin_lower, bin_upper in zip(bin_lowers, bin_uppers):
+        in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
+        bin_size = in_bin.float().sum()
+        if bin_size > 0:
+            acc_in_bin = accuracies[in_bin].float().mean()
+            conf_in_bin = confidences[in_bin].mean()
+            max_calibration_error = max(max_calibration_error, torch.abs(conf_in_bin - acc_in_bin).item())
+    return max_calibration_error
+
+def plot_ece(probs, labels, num_bins=15, save_path="reliability_diagram.png"):
+    bins = torch.linspace(0, 1, num_bins + 1)
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+
+    confidences, predictions = probs.max(dim=-1)
+    accuracies = predictions.eq(labels)
+
+    bin_accs = []
+    bin_confs = []
+    bin_sizes = []
+
+    for bin_lower, bin_upper in zip(bins[:-1], bins[1:]):
+        in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
+        bin_size = in_bin.float().sum().item()
+        if bin_size > 0:
+            acc_in_bin = accuracies[in_bin].float().mean().item()
+            conf_in_bin = confidences[in_bin].mean().item()
+            bin_accs.append(acc_in_bin)
+            bin_confs.append(conf_in_bin)
+            bin_sizes.append(bin_size)
+        else:
+            bin_accs.append(0)
+            bin_confs.append(0)
+            bin_sizes.append(0)
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(bin_confs, bin_accs, marker='o', label="Reliability", color='blue')
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfect Calibration")
+    plt.bar(bin_centers, np.array(bin_sizes) / sum(bin_sizes), width=0.05, alpha=0.5, color="orange", label="Sample Count")
+    plt.xlabel("Confidence")
+    plt.ylabel("Accuracy")
+    plt.title("Reliability Diagram")
+    plt.legend()
+    plt.savefig(save_path)
+    plt.close()
+
+def plot_mce(probs, labels, num_bins=15, save_path="mce_reliability_diagram.png"):
+    bins = torch.linspace(0, 1, num_bins + 1)
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+
+    confidences, predictions = probs.max(dim=-1)
+    accuracies = predictions.eq(labels)
+
+    bin_accs = []
+    bin_confs = []
+    max_error_bin = None
+    max_calibration_error = 0
+
+    for bin_lower, bin_upper in zip(bins[:-1], bins[1:]):
+        in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
+        bin_size = in_bin.float().sum().item()
+        if bin_size > 0:
+            acc_in_bin = accuracies[in_bin].float().mean().item()
+            conf_in_bin = confidences[in_bin].mean().item()
+            bin_accs.append(acc_in_bin)
+            bin_confs.append(conf_in_bin)
+
+            calibration_error = abs(conf_in_bin - acc_in_bin)
+            if calibration_error > max_calibration_error:
+                max_calibration_error = calibration_error
+                max_error_bin = (conf_in_bin, acc_in_bin)
+        else:
+            bin_accs.append(0)
+            bin_confs.append(0)
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(bin_confs, bin_accs, marker='o', label="Reliability", color='blue')
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfect Calibration")
+    if max_error_bin:
+        plt.scatter(max_error_bin[0], max_error_bin[1], color='red', label="Max Calibration Error", zorder=5)
+        plt.annotate(f"Max Error: {max_calibration_error:.2f}",
+                    xy=max_error_bin, xytext=(max_error_bin[0] + 0.1, max_error_bin[1] - 0.1),
+                    arrowprops=dict(facecolor='black', shrink=0.05),
+                    fontsize=10, color='red')
+    plt.xlabel("Confidence")
+    plt.ylabel("Accuracy")
+    plt.title("MCE Reliability Diagram")
+    plt.legend()
+    plt.savefig(save_path)
+    plt.close()
+
+# 修改后的代码开始
 parser = argparse.ArgumentParser()
 parser.add_argument('--cfg', default=None, type=str)
 parser.add_argument('--test', default=False, action='store_true')
@@ -202,5 +335,29 @@ else:
     
     if output_logits:
         training_model.output_logits(openset=test_open)
-        
+
+    all_probs = []
+    all_targets = []
+    with torch.no_grad():
+        for data, target in tqdm(data[test_split]):
+            data, target = data.cuda(), target.cuda()
+            logits = training_model.model(data)
+            probs = torch.softmax(logits, dim=-1)
+            all_probs.append(probs.cpu())
+            all_targets.append(target.cpu())
+
+    all_probs = torch.cat(all_probs)
+    all_targets = torch.cat(all_targets)
+
+    # 計算指標
+    ece = compute_ece(all_probs, all_targets)
+    mce = compute_mce(all_probs, all_targets)
+
+    print(f"ECE: {ece:.4f}")
+    print(f"MCE: {mce:.4f}")
+
+    # 繪製圖表
+    plot_ece(all_probs, all_targets, save_path="reliability_diagram.png")
+    plot_mce(all_probs, all_targets, save_path="mce_reliability_diagram.png")
+
 print('ALL COMPLETED.')
