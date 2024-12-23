@@ -349,16 +349,12 @@ else:
     all_probs = []
     all_targets = []
     with torch.no_grad():
-        for batch in tqdm(data[test_split]):
-            if isinstance(batch, (list, tuple)) and len(batch) >= 2:
-                inputs, targets = batch[:2]  # 假設第一個是數據，第二個是標籤
-            else:
-                raise ValueError(f"Unexpected batch format: {batch}")
-            inputs, targets = inputs.cuda(), targets.cuda()
-            logits = training_model(inputs)
+        for data, target in tqdm(data[test_split]):
+            data, target = data.cuda(), target.cuda()
+            logits = training_model.model(data)
             probs = torch.softmax(logits, dim=-1)
             all_probs.append(probs.cpu())
-            all_targets.append(targets.cpu())
+            all_targets.append(target.cpu())
 
     all_probs = torch.cat(all_probs)
     all_targets = torch.cat(all_targets)
