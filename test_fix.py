@@ -150,6 +150,15 @@ def plot_ece(probs, labels, num_bins=15, save_path="reliability_diagram.png"):
     plt.savefig(save_path)  # 保存圖像
     plt.close()  # 關閉圖像避免資源佔用
 
+def plot_confidence_distribution(confidence_scores, title="Confidence Distribution", save_path="confidence_distribution.png"):
+    """Plot confidence score distribution."""
+    plt.hist(confidence_scores, bins=100, range=(0, 1), alpha=0.75)
+    plt.title(title)
+    plt.xlabel("Confidence Score")
+    plt.ylabel("Frequency")
+    plt.savefig(save_path)  # 保存圖像
+    plt.close()  # 關閉圖像避免資源佔用
+
 def main(config):
     logger = config.get_logger('test')
 
@@ -218,7 +227,7 @@ def main(config):
 
 
             #加上threshold的設定
-            threshold = 0.9  # 設定 confidence 閾值
+            threshold = 0.8 # 設定 confidence 閾值
             valid_mask = confidences > threshold  # 布林遮罩，True 表示保留樣本
 
             # 過濾樣本
@@ -246,7 +255,7 @@ def main(config):
             all_probs.append(probs.cpu())
             all_targets.append(target.cpu())
             normalized_entropy_scores.extend(normalized_entropy.cpu().numpy())
-
+            confidence_scores.extend(confidences.cpu().numpy())
     # Calculate accuracy原本的accuracy計算
     test_accuracy = correct_predictions / total_samples
     
@@ -275,6 +284,7 @@ def main(config):
     plot_Entropy(entropy_scores, title="Entropy Distribution", save_path="entropy_distribution.png")
     plot_ece(torch.cat(all_probs), torch.cat(all_targets), save_path="reliability_diagram.png")
     plot_normalized_entropy(normalized_entropy_scores, title="Normalized Entropy Distribution", save_path="normalized_entropy_distribution.png")
+    plot_confidence_distribution(confidence_scores, title="Confidence Distribution", save_path="confidence_distribution.png")
 
 
 
