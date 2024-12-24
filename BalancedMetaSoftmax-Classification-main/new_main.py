@@ -22,7 +22,7 @@ import pprint
 from data import dataloader
 from run_networks import model
 import warnings
-yaml
+import yaml
 from utils import source_import, get_value
 
 data_root = {'ImageNet': './dataset/ImageNet',
