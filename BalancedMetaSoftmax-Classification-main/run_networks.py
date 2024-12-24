@@ -31,6 +31,28 @@ import higher
 
 class model ():
     
+    def get_predictions_and_labels(self, phase):
+        """
+        Extract predictions and labels for a given phase (e.g., 'test', 'val').
+        """
+        self.networks['classifier'].eval()
+        all_predictions = []
+        all_labels = []
+        
+        with torch.no_grad():
+            for inputs, labels, _ in self.data[phase]:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                outputs, _ = self.networks['classifier'](inputs)
+                predictions = torch.argmax(outputs, dim=1)
+                all_predictions.append(predictions.cpu())
+                all_labels.append(labels.cpu())
+
+        all_predictions = torch.cat(all_predictions)
+        all_labels = torch.cat(all_labels)
+
+        return all_predictions.numpy(), all_labels.numpy()
+
+
     def __init__(self, config, data, test=False, meta_sample=False, learner=None):
 
         self.meta_sample = meta_sample
