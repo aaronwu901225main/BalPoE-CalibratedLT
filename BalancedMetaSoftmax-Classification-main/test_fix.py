@@ -416,9 +416,6 @@ def main(config):
     plot_normalized_entropy(normalized_entropy_scores, title="Normalized Entropy Distribution", save_path="normalized_entropy_distribution.png")
     plot_confidence_distribution(confidence_scores, title="Confidence Distribution", save_path="confidence_distribution.png")
 
-
-
-
 if __name__ == '__main__':
     args = argparse.ArgumentParser(description='PyTorch Template')
     args.add_argument('-c', '--config', default=None, type=str,
