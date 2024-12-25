@@ -191,5 +191,7 @@ else:
     plt.legend()
     plt.grid()
     plt.show()
-    
+    plt.savefig("Reliability_Diagram.png")  # 保存圖像
+    plt.close()  # 關閉圖像避免資源佔用
+
 print('ALL COMPLETED.')
