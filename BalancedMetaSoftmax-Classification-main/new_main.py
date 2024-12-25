@@ -162,7 +162,7 @@ else:
         targets = batch[1]  # 獲取標籤
 
         # 計算模型輸出（logits）
-        logits = training_model(inputs.cuda())  # 修正：直接調用模型對象
+        logits = training_model.batch_forward(inputs.cuda()) # 嘗試 batch_forward 方法
         outputs.append(logits.cpu().detach().numpy())
         labels.append(targets.cpu().numpy())
 
