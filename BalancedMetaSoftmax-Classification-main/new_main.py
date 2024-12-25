@@ -170,20 +170,56 @@ else:
     outputs = np.concatenate(outputs, axis=0)
     labels = np.concatenate(labels, axis=0)
 
+    # 計算模型機率
+    import torch
+    probs = torch.softmax(torch.tensor(outputs), dim=-1)
+
+    # 計算準確率
+    predictions = probs.argmax(dim=-1)
+    accuracy = (predictions == torch.tensor(labels)).float().mean().item()
+
+    # 計算熵
+    def calculate_entropy(probs):
+        return -np.sum(probs * np.log(probs + 1e-12), axis=1)
+
+    entropies = calculate_entropy(probs.numpy())
+    total_entropy = np.sum(entropies)
+    average_entropy = np.mean(entropies)
+
+    # 計算標準化熵
+    normalized_entropies = entropies / np.log(probs.size(-1))
+    total_normalized_entropy = np.sum(normalized_entropies)
+    average_normalized_entropy = np.mean(normalized_entropies)
+
     # 計算 ECE 和 MCE
     ece = ece_loss.loss(outputs, labels, n_bins=15, logits=True)
     mce = mce_loss.loss(outputs, labels, n_bins=15, logits=True)
-    print(f"Test ECE: {ece}")
-    print(f"Test MCE: {mce}")
+
+    # 過濾樣本的統計
+    threshold = 0.8
+    filtered = (probs.max(dim=-1).values > threshold)
+    filtered_accuracy = (predictions[filtered] == torch.tensor(labels)[filtered]).float().mean().item()
+    total_filtered_samples = filtered.sum().item()
+    total_dropped_samples = len(labels) - total_filtered_samples
+    drop_rate = total_dropped_samples / len(labels)
+
+    # 打印結果
+    print(f"Total test samples: {len(labels)}")
+    print(f"Test Accuracy: {accuracy:.4f}")
+    print(f"Expected Calibration Error (ECE): {ece:.4f}")
+    print(f"Total Entropy: {total_entropy:.4f}")
+    print(f"Average Entropy: {average_entropy:.4f}")
+    print(f"Total normalized Entropy: {total_normalized_entropy:.4f}")
+    print(f"Average normalized Entropy: {average_normalized_entropy:.4f}")
+    print(f"Threshold: {threshold}")
+    print(f"Total filtered samples: {total_filtered_samples}")
+    print(f"Total dropped samples: {total_dropped_samples}")
+    print(f"Drop Rate: {drop_rate:.4f}")
+    print(f"Filtered Accuracy: {filtered_accuracy:.4f}")
+    print(f"Mean Calibration Error (MCE): {mce:.4f}")
 
     # 繪製 ECE 和 MCE 圖
-    import torch
-
-    # 將 logits 轉換為機率
-    probs = torch.softmax(torch.tensor(outputs), dim=-1)
-
     def plot_ece(probs, labels, num_bins=15, save_path="ece_reliability_diagram.png"):
-        """Plot Expected Calibration Error (ECE)"""
         bins = torch.linspace(0, 1, num_bins + 1)
         bin_centers = (bins[:-1] + bins[1:]) / 2
 
@@ -220,7 +256,6 @@ else:
         plt.close()
 
     def plot_mce(probs, labels, num_bins=15, save_path="mce_reliability_diagram.png"):
-        """Plot Mean Calibration Error (MCE)"""
         bins = torch.linspace(0, 1, num_bins + 1)
         bin_centers = (bins[:-1] + bins[1:]) / 2
 
@@ -241,7 +276,6 @@ else:
                 bin_accs.append(acc_in_bin)
                 bin_confs.append(conf_in_bin)
 
-                # 計算最大誤差
                 calibration_error = abs(conf_in_bin - acc_in_bin)
                 if calibration_error > max_calibration_error:
                     max_calibration_error = calibration_error
@@ -266,11 +300,8 @@ else:
         plt.savefig(save_path)
         plt.close()
 
-    # 繪製並保存圖像
     plot_ece(probs, torch.tensor(labels), save_path="ece_reliability_diagram.png")
     plot_mce(probs, torch.tensor(labels), save_path="mce_reliability_diagram.png")
 
     print("Reliability diagrams saved as ece_reliability_diagram.png and mce_reliability_diagram.png.")
-
-    
 print('ALL COMPLETED.')
