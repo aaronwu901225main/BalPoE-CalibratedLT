@@ -162,7 +162,7 @@ else:
         targets = batch[1]  # 獲取標籤
 
         # 計算模型輸出（logits）
-        logits = training_model.batch_forward(inputs.cuda()) # 嘗試 batch_forward 方法
+        logits = training_model.batch_forward(inputs.cuda())  # 嘗試 batch_forward 方法
         outputs.append(logits.cpu().detach().numpy())
         labels.append(targets.cpu().numpy())
 
@@ -176,22 +176,101 @@ else:
     print(f"Test ECE: {ece}")
     print(f"Test MCE: {mce}")
 
-    # 繪製可靠性圖
-    bin_lowers = ece_loss.bin_lowers
-    bin_uppers = ece_loss.bin_uppers
-    bin_centers = (bin_lowers + bin_uppers) / 2
+    # 繪製 ECE 和 MCE 圖
+    import torch
 
-    plt.figure(figsize=(8, 6))
-    plt.bar(bin_centers, ece_loss.bin_acc, width=0.1, alpha=0.6, label="Accuracy")
-    plt.plot(bin_centers, ece_loss.bin_conf, 'o-', label="Confidence", color='red')
-    plt.plot([0, 1], [0, 1], '--', label="Perfect Calibration", color='gray')
-    plt.title("Reliability Diagram")
-    plt.xlabel("Confidence")
-    plt.ylabel("Accuracy")
-    plt.legend()
-    plt.grid()
-    plt.show()
-    plt.savefig("Reliability_Diagram.png")  # 保存圖像
-    plt.close()  # 關閉圖像避免資源佔用
+    # 將 logits 轉換為機率
+    probs = torch.softmax(torch.tensor(outputs), dim=-1)
 
+    def plot_ece(probs, labels, num_bins=15, save_path="ece_reliability_diagram.png"):
+        """Plot Expected Calibration Error (ECE)"""
+        bins = torch.linspace(0, 1, num_bins + 1)
+        bin_centers = (bins[:-1] + bins[1:]) / 2
+
+        confidences, predictions = probs.max(dim=-1)
+        accuracies = predictions.eq(labels)
+
+        bin_accs = []
+        bin_confs = []
+        bin_sizes = []
+
+        for bin_lower, bin_upper in zip(bins[:-1], bins[1:]):
+            in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
+            bin_size = in_bin.float().sum().item()
+            if bin_size > 0:
+                acc_in_bin = accuracies[in_bin].float().mean().item()
+                conf_in_bin = confidences[in_bin].mean().item()
+                bin_accs.append(acc_in_bin)
+                bin_confs.append(conf_in_bin)
+                bin_sizes.append(bin_size)
+            else:
+                bin_accs.append(0)
+                bin_confs.append(0)
+                bin_sizes.append(0)
+
+        plt.figure(figsize=(8, 6))
+        plt.plot(bin_confs, bin_accs, marker='o', label="Reliability", color='blue')
+        plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfect Calibration")
+        plt.bar(bin_centers, np.array(bin_sizes) / sum(bin_sizes), width=0.05, alpha=0.5, color="orange", label="Sample Count")
+        plt.xlabel("Confidence")
+        plt.ylabel("Accuracy")
+        plt.title("ECE Reliability Diagram")
+        plt.legend()
+        plt.savefig(save_path)
+        plt.close()
+
+    def plot_mce(probs, labels, num_bins=15, save_path="mce_reliability_diagram.png"):
+        """Plot Mean Calibration Error (MCE)"""
+        bins = torch.linspace(0, 1, num_bins + 1)
+        bin_centers = (bins[:-1] + bins[1:]) / 2
+
+        confidences, predictions = probs.max(dim=-1)
+        accuracies = predictions.eq(labels)
+
+        bin_accs = []
+        bin_confs = []
+        max_error_bin = None
+        max_calibration_error = 0
+
+        for bin_lower, bin_upper in zip(bins[:-1], bins[1:]):
+            in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
+            bin_size = in_bin.float().sum().item()
+            if bin_size > 0:
+                acc_in_bin = accuracies[in_bin].float().mean().item()
+                conf_in_bin = confidences[in_bin].mean().item()
+                bin_accs.append(acc_in_bin)
+                bin_confs.append(conf_in_bin)
+
+                # 計算最大誤差
+                calibration_error = abs(conf_in_bin - acc_in_bin)
+                if calibration_error > max_calibration_error:
+                    max_calibration_error = calibration_error
+                    max_error_bin = (conf_in_bin, acc_in_bin)
+            else:
+                bin_accs.append(0)
+                bin_confs.append(0)
+
+        plt.figure(figsize=(8, 6))
+        plt.plot(bin_confs, bin_accs, marker='o', label="Reliability", color='blue')
+        plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfect Calibration")
+        if max_error_bin is not None:
+            plt.scatter(max_error_bin[0], max_error_bin[1], color='red', label="Max Calibration Error", zorder=5)
+            plt.annotate(f"Max Error: {max_calibration_error:.2f}",
+                        xy=max_error_bin, xytext=(max_error_bin[0] + 0.1, max_error_bin[1] - 0.1),
+                        arrowprops=dict(facecolor='black', shrink=0.05),
+                        fontsize=10, color='red')
+        plt.xlabel("Confidence")
+        plt.ylabel("Accuracy")
+        plt.title("MCE Reliability Diagram")
+        plt.legend()
+        plt.savefig(save_path)
+        plt.close()
+
+    # 繪製並保存圖像
+    plot_ece(probs, torch.tensor(labels), save_path="ece_reliability_diagram.png")
+    plot_mce(probs, torch.tensor(labels), save_path="mce_reliability_diagram.png")
+
+    print("Reliability diagrams saved as ece_reliability_diagram.png and mce_reliability_diagram.png.")
+
+    
 print('ALL COMPLETED.')
