@@ -153,6 +153,9 @@ else:
     # Testing phase
     outputs, labels = [], []
 
+    print(f"Type of training_model: {type(training_model)}")
+    print(f"Attributes of training_model: {dir(training_model)}")
+
     # 遍歷測試數據集
     for batch in data['test']:
         inputs = batch[0]  # 獲取輸入
