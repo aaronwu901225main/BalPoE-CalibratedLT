@@ -176,5 +176,20 @@ else:
     print(f"Test ECE: {ece}")
     print(f"Test MCE: {mce}")
 
+    # 繪製可靠性圖
+    bin_lowers = ece_loss.bin_lowers
+    bin_uppers = ece_loss.bin_uppers
+    bin_centers = (bin_lowers + bin_uppers) / 2
 
+    plt.figure(figsize=(8, 6))
+    plt.bar(bin_centers, ece_loss.bin_acc, width=0.1, alpha=0.6, label="Accuracy")
+    plt.plot(bin_centers, ece_loss.bin_conf, 'o-', label="Confidence", color='red')
+    plt.plot([0, 1], [0, 1], '--', label="Perfect Calibration", color='gray')
+    plt.title("Reliability Diagram")
+    plt.xlabel("Confidence")
+    plt.ylabel("Accuracy")
+    plt.legend()
+    plt.grid()
+    plt.show()
+    
 print('ALL COMPLETED.')
