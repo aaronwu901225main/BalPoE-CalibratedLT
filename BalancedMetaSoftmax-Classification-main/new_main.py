@@ -152,14 +152,18 @@ else:
 
     # Testing phase
     outputs, labels = [], []
-    for batch in data['test']:
-        inputs = batch[0]  # 第一部分是 inputs
-        targets = batch[1]  # 第二部分是 targets
 
-        logits = training_model.forward(inputs.cuda())  # 計算模型輸出
+    # 遍歷測試數據集
+    for batch in data['test']:
+        inputs = batch[0]  # 獲取輸入
+        targets = batch[1]  # 獲取標籤
+
+        # 計算模型輸出（logits）
+        logits = training_model(inputs.cuda())  # 修正：直接調用模型對象
         outputs.append(logits.cpu().detach().numpy())
         labels.append(targets.cpu().numpy())
 
+    # 合併批次輸出
     outputs = np.concatenate(outputs, axis=0)
     labels = np.concatenate(labels, axis=0)
 
