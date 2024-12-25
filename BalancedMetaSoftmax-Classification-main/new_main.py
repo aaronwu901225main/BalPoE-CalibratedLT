@@ -150,18 +150,24 @@ else:
     training_model = model(config, data, test=True)
     training_model.load_model(args.model_dir)
 
+    # Testing phase
     outputs, labels = [], []
-    for inputs, targets in data['test']:
-        logits = training_model.forward(inputs.cuda())
+    for batch in data['test']:
+        inputs = batch[0]  # 第一部分是 inputs
+        targets = batch[1]  # 第二部分是 targets
+
+        logits = training_model.forward(inputs.cuda())  # 計算模型輸出
         outputs.append(logits.cpu().detach().numpy())
         labels.append(targets.cpu().numpy())
 
     outputs = np.concatenate(outputs, axis=0)
     labels = np.concatenate(labels, axis=0)
 
+    # 計算 ECE 和 MCE
     ece = ece_loss.loss(outputs, labels, n_bins=15, logits=True)
     mce = mce_loss.loss(outputs, labels, n_bins=15, logits=True)
     print(f"Test ECE: {ece}")
     print(f"Test MCE: {mce}")
+
 
 print('ALL COMPLETED.')
