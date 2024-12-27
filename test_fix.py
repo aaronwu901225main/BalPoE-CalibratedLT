@@ -145,7 +145,7 @@ def plot_ece(probs, labels, num_bins=15, save_path="reliability_diagram.png"):
     plt.bar(bin_centers, np.array(bin_sizes) / sum(bin_sizes), width=0.05, alpha=0.5, color="orange", label="Sample Count")
     plt.xlabel("Confidence")
     plt.ylabel("Accuracy")
-    plt.title("Reliability Diagram")
+    plt.title("ECE Reliability Diagram")
     plt.legend()
     plt.savefig(save_path)  # 保存圖像
     plt.close()  # 關閉圖像避免資源佔用
