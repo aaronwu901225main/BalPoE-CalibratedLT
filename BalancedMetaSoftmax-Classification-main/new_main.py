@@ -216,7 +216,7 @@ else:
     print(f"Total dropped samples: {total_dropped_samples}")
     print(f"Drop Rate: {drop_rate:.4f}")
     print(f"Filtered Accuracy: {filtered_accuracy:.4f}")
-    print(f"Mean Calibration Error (MCE): {mce:.4f}")
+    print(f"Maximum Calibration Error (MCE): {mce:.4f}")
 
     # 繪製 ECE 和 MCE 圖
     def plot_ece(probs, labels, num_bins=15, save_path="ece_reliability_diagram.png"):

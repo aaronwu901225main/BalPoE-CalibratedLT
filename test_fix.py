@@ -401,7 +401,7 @@ def main(config):
 
     # **新增：計算 MCE**
     mce = compute_mce(torch.cat(all_probs), torch.cat(all_targets))
-    logger.info(f"Mean Calibration Error (MCE): {mce:.4f}")
+    logger.info(f"Maximum Calibration Error (MCE): {mce:.4f}")
 
     # **新增：繪製 MCE 圖表**
     plot_mce(torch.cat(all_probs), torch.cat(all_targets), save_path="mce_reliability_diagram.png")
